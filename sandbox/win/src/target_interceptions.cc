@@ -74,6 +74,13 @@ TargetNtMapViewOfSection(NtMapViewOfSectionFunction orig_MapViewOfSection,
       }
     }
 
+    // Assume the Windows heap is not usable until kernel32 is loaded. Creating
+    // the sandbox heap earlier can enter ntdll critical sections that are not
+    // initialized yet, which crashes the process before it starts (XT-19390,
+    // Windows Server 2025 with KB5126646). Upstream chromium f1abab03e726.
+    if (s_state == kBeforeKernel32)
+      break;
+
     if (!InitHeap())
       break;
 
